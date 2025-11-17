@@ -1,75 +1,55 @@
 # model_utils.py
+import importlib
 import os
-import joblib
-import numpy as np
+import sys
+import traceback
+from joblib import load as joblib_load
 
-# Cache model
-_loaded = None
+# --- Compatibility monkeypatches for known missing sklearn private names ---
+# This must run BEFORE joblib.load() is called.
+def _ensure_sklearn_compatibility():
+    module_name = "sklearn.compose._column_transformer"
+    try:
+        ct = importlib.import_module(module_name)
+    except Exception:
+        ct = None
 
-def load_model():
+    if ct is not None:
+        # Fallback: if the old private name is missing, provide a simple shim.
+        if not hasattr(ct, "_RemainderColsList"):
+            class _RemainderColsList(list):
+                """Compatibility fallback for old pickles that referenced _RemainderColsList"""
+                pass
+            setattr(ct, "_RemainderColsList", _RemainderColsList)
+
+    # add any other compatibility fallbacks here if needed:
+    # e.g. for very old pipelines you might need to create aliases for other names.
+
+# --- Model loader with helpful logging ---
+def load_model(model_path="ev_range_model.joblib"):
     """
-    Loads the EV range prediction model from the project folder.
-    Looks for any .joblib or .pkl file automatically.
+    Load the joblib model at model_path. If unpickling fails because of missing
+    classes from sklearn, this function attempts compatibility fallbacks first.
     """
-    global _loaded
+    # Ensure compatibility shims are present
+    _ensure_sklearn_compatibility()
 
-    if _loaded is not None:
-        return _loaded
+    # Resolve absolute path (if the model sits in a folder, adjust accordingly)
+    abs_path = os.path.join(os.getcwd(), model_path) if not os.path.isabs(model_path) else model_path
 
-    script_dir = os.path.dirname(__file__)
+    if not os.path.exists(abs_path):
+        # helpful error for debugging in Streamlit logs
+        raise FileNotFoundError(f"Model file not found at: {abs_path}")
 
-    # Try common model names
-    candidates = [
-        "ev_range_model.joblib",
-        "ev_range_model (1).joblib",
-        "model.joblib",
-        "model.pkl"
-    ]
-
-    for c in candidates:
-        model_path = os.path.join(script_dir, c)
-        if os.path.exists(model_path):
-            _loaded = joblib.load(model_path)
-            print(f"Loaded model: {c}")
-            return _loaded
-
-    # Search for any model file in folder
-    for f in os.listdir(script_dir):
-        if f.endswith(".joblib") or f.endswith(".pkl"):
-            model_path = os.path.join(script_dir, f)
-            _loaded = joblib.load(model_path)
-            print(f"Loaded model: {f}")
-            return _loaded
-
-    raise FileNotFoundError("❌ No model file found in project folder.")
-
-def predict_range(battery_kwh: float, eff_km_per_kwh: float) -> float:
-    """
-    Predicts EV range based on battery size (kWh) and efficiency (km/kWh).
-    """
-    model = load_model()
-
-    # Create a dummy dataframe with all required features
-    # The model expects 13 features, but we only have battery and efficiency
-    # We'll use reasonable defaults for the missing features
-    import pandas as pd
-
-    data = {
-        'AccelSec': [5.0],  # Default acceleration time
-        'TopSpeed_KmH': [140.0],  # Default top speed
-        'Efficiency_WhKm': [float(battery_kwh) / float(eff_km_per_kwh) * 1000],  # Convert to Wh/km
-        'Seats': [5],  # Default seats
-        'PriceEuro': [30000],  # Default price
-        'Brand': ['Generic'],
-        'Model': ['EV'],
-        'FastCharge_KmH': ['No'],  # Default fast charge
-        'RapidCharge': ['No'],
-        'PowerTrain': ['Electric'],
-        'PlugType': ['Type 2 CCS'],
-        'BodyStyle': ['Hatchback'],
-        'Segment': ['B']
-    }
-
-    X = pd.DataFrame(data)
-    pred = model.predict(X)
-    return float(pred[0])
+    try:
+        # Use joblib to load the model
+        model = joblib_load(abs_path)
+        return model
+    except Exception as ex:
+        # Print stacktrace to the logs so Streamlit's log viewer shows the full detail
+        tb = traceback.format_exc()
+        # Re-raise a clear error so you see something in the app logs
+        raise RuntimeError(
+            "Failed to load model via joblib.load(). See nested exception and logs.\n\n"
+            f"Original exception:\n{ex}\n\nTraceback:\n{tb}"
+        ) from ex
