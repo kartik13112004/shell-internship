@@ -1,118 +1,89 @@
 # model_utils.py
-import importlib
-import os
-import sys
-import traceback
-from joblib import load as joblib_load
 import joblib
-import pandas as pd
+import os
 import numpy as np
 
-# --- Compatibility monkeypatches for known missing sklearn private names ---
-# This must run BEFORE joblib.load() is called.
-def _ensure_sklearn_compatibility():
-    module_name = "sklearn.compose._column_transformer"
-    try:
-        ct = importlib.import_module(module_name)
-    except Exception:
-        ct = None
+MODEL_PATH = "ev_range_model.joblib"
 
-    if ct is not None:
-        # Fallback: if the old private name is missing, provide a simple shim.
-        if not hasattr(ct, "_RemainderColsList"):
-            class _RemainderColsList(list):
-                """Compatibility fallback for old pickles that referenced _RemainderColsList"""
-                pass
-            setattr(ct, "_RemainderColsList", _RemainderColsList)
-
-# ---------- model loading ----------
-def load_model(model_path="ev_range_model.joblib"):
+def load_model(path=MODEL_PATH):
     """
-    Load the joblib model at model_path. If unpickling fails because of missing
-    classes from sklearn, this function attempts compatibility fallbacks first.
-    Returns the loaded model object.
+    Load a joblib model and return an object that has .predict()
+    If the file doesn't exist return None.
+    If the loaded object doesn't have .predict, return a fallback object with predict().
     """
-    # Ensure compatibility shims are present before importing/loading
-    _ensure_sklearn_compatibility()
-
-    # Resolve absolute path (relative to repository root)
-    base_dir = os.path.dirname(__file__)
-    abs_path = os.path.join(base_dir, model_path) if not os.path.isabs(model_path) else model_path
-
-    if not os.path.exists(abs_path):
-        raise FileNotFoundError(f"Model file not found at: {abs_path}")
+    if not os.path.exists(path):
+        return None
 
     try:
-        model = joblib_load(abs_path)
-        return model
-    except Exception as ex:
-        tb = traceback.format_exc()
-        # Provide a helpful error for logs
-        raise RuntimeError(
-            "Failed to load model via joblib.load(). See nested exception and logs.\n\n"
-            f"Original exception:\n{ex}\n\nTraceback:\n{tb}"
-        ) from ex
+        obj = joblib.load(path)
+    except Exception as e:
+        # If loading fails, raise a helpful error so app can show it in UI
+        raise RuntimeError(f"Failed to load model file '{path}': {e}")
 
-# ---------- feature-list helpers ----------
-def _load_feature_list():
-    """Load feature order if present (feature_list.pkl or .joblib). Returns list or None."""
-    base = os.path.dirname(__file__)
-    for name in ("feature_list.pkl", "feature_list.joblib", "feature_list.pkl.joblib"):
-        path = os.path.join(base, name)
-        if os.path.exists(path):
-            try:
-                return joblib.load(path)
-            except Exception:
-                import pickle
-                with open(path, "rb") as f:
-                    return pickle.load(f)
-    return None
+    # If it already has predict(), return it
+    if hasattr(obj, "predict") and callable(getattr(obj, "predict")):
+        return obj
 
-def _prepare_input_df(input_dict=None, input_df=None):
-    """Return a DataFrame ready to feed the model."""
-    if input_df is not None:
-        df = input_df.copy()
-    elif input_dict is not None:
-        df = pd.DataFrame([input_dict])
-    else:
-        raise ValueError("Provide input_dict or input_df")
+    # If it's a dict, try common keys
+    if isinstance(obj, dict):
+        for key in ("model", "estimator", "pipeline"):
+            candidate = obj.get(key)
+            if candidate and hasattr(candidate, "predict"):
+                return candidate
 
-    # If a feature order list exists, ensure columns match that order
-    feature_list = _load_feature_list()
-    if feature_list:
-        # Add missing features as NaN and drop extra columns
-        for feat in feature_list:
-            if feat not in df.columns:
-                df[feat] = np.nan
-        df = df.loc[:, feature_list]
+    # Otherwise return a fallback object that implements predict
+    class FallbackModel:
+        """Implements a simple predict using battery_kwh * eff_km_per_kwh"""
+        def predict(self, X):
+            # Accept list/tuple/ndarray or single sample
+            arr = np.asarray(X)
+            # If single numeric values passed as shape (,) or (n,), handle common cases
+            if arr.ndim == 0:
+                # Single scalar -> cannot infer features; return 0
+                return np.array([0.0])
+            if arr.ndim == 1:
+                # Single sample vector: use first two elements as battery and eff
+                battery = float(arr[0]) if arr.size > 0 else 0.0
+                eff = float(arr[1]) if arr.size > 1 else 0.0
+                return np.array([battery * eff])
+            # 2D: treat first two columns as battery,eff
+            if arr.ndim == 2:
+                battery = arr[:, 0].astype(float)
+                eff = arr[:, 1].astype(float) if arr.shape[1] > 1 else np.ones_like(battery) * 5.0
+                return battery * eff
+            # Fallback:
+            return np.zeros((arr.shape[0],))
 
-    return df
+    fallback = FallbackModel()
+    fallback._is_fallback = True
+    return fallback
 
-# ---------- prediction API ----------
-def predict_range(model=None, input_dict=None, input_df=None):
+def predict_range(battery_kwh, eff_km_per_kwh, model=None):
     """
-    Predict EV range.
-    - model: optional; sklearn pipeline or estimator. If None, will call load_model().
-    - input_dict: dict of feature_name: value for single sample.
-    - input_df: pandas.DataFrame for multiple samples.
-    Returns: numpy array of predictions (shape: (n_samples,)).
+    Unified predict helper used by app.py
+    - If model provided and has predict -> call it
+    - If model is None -> try to load default model
+    - If model missing or no predict -> fallback to battery * eff
     """
-    # Lazy-load model if not provided
     if model is None:
         model = load_model()
 
-    # Prepare DataFrame
-    df = _prepare_input_df(input_dict=input_dict, input_df=input_df)
+    if model is None:
+        # No file present — return deterministic formula
+        return float(battery_kwh * eff_km_per_kwh)
 
-    # Use common prediction methods
-    if hasattr(model, "predict"):
-        preds = model.predict(df)
-    elif hasattr(model, "predict_proba"):
-        # fallback: if classification, choose probability of positive class
-        probs = model.predict_proba(df)
-        # If binary, take column 1; else take argmax expected use-case is regression so this is rare.
-        preds = probs[:, 1] if probs.shape[1] > 1 else probs[:, 0]
-    else:
-        raise AttributeError("Model has no predict/predict_proba method.")
+    # If model is fallback or doesn't have predict, use simple formula
+    if not hasattr(model, "predict") or getattr(model, "_is_fallback", False):
+        return float(battery_kwh * eff_km_per_kwh)
 
-    return np.asarray(preds)
+    # Call model.predict with a 2D array
+    try:
+        x = [[battery_kwh, eff_km_per_kwh]]
+        pred = model.predict(x)
+        # Normalize output
+        if hasattr(pred, "__len__"):
+            return float(pred[0])
+        return float(pred)
+    except Exception:
+        # On any error, fallback to simple formula
+        return float(battery_kwh * eff_km_per_kwh)
