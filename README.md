@@ -1,167 +1,138 @@
-# ⚡ Electric Vehicle (EV) Range Prediction – Complete Project (Week 1, 2 & 3)
+# ⚡ Electric Vehicle (EV) Range Prediction Using Machine Learning
 
-This repository contains my **Shell Internship project**, completed across **three structured weeks**, covering the full lifecycle of an EV Range Prediction system:
+A machine learning project developed during my **Shell Internship**, covering data preprocessing, regression model training, evaluation, and an interactive Streamlit application with an AI-powered EV assistant.
 
-- **Week 1 → Data Understanding & Problem Definition**
-- **Week 2 → Model Building, Training & Evaluation**
-- **Week 3 → Chatbot + Streamlit Frontend Application**
+**Technologies:** Python, Pandas, NumPy, Scikit-learn, Random Forest Regression, Streamlit, Joblib
 
-The goal is to predict the **driving range (km)** of Electric Vehicles using Machine Learning and expose the model through an interactive **web-based chatbot application**.
+## 🎯 Project Overview
 
----
+Electric vehicle range is an important factor when choosing an EV. This project uses machine learning to estimate the driving range of electric vehicles based on vehicle specifications.
 
-# 🧠 Week 1 – Problem Definition, Dataset Study, and Setup
+The project covers the complete workflow, from dataset preparation and model evaluation to integrating the trained model into a web application.
 
-## 🚗 Project Overview
-Electric Vehicles (EVs) are the future of sustainable mobility, but **range anxiety** is a major concern among users.  
-To solve this, the project aims to build a Machine Learning model that can predict **how far an EV can travel** based on its parameters like battery capacity, weight, efficiency, etc.
+## 📊 Dataset
 
-### ❓ Problem Statement
-The EV range depends on:
-- Battery size  
-- Temperature  
-- Weight  
-- Speed  
-- Road conditions  
-- Motor efficiency  
+- **Dataset:** Electric Vehicle Specifications
+- **Source:** Kaggle dataset used in the project
+- **Records:** 103
+- **Features:** 14 columns
+- **Target variable:** `Range_Km`
 
-Traditional methods are Not accurate → So we use **Machine Learning** to predict range more intelligently.
+The dataset includes vehicle specifications such as acceleration, top speed, energy efficiency, fast-charging speed, powertrain, body style, seating capacity, and price.
 
----
+## 🛠️ Data Preprocessing
 
-## 📊 Dataset (Kaggle)
-Dataset: **Electric Vehicle Range Prediction — Regression Analysis**  
-Contains features like:
+- Loaded and inspected the dataset using Pandas.
+- Handled missing values and missing-value markers.
+- Separated the target variable, `Range_Km`, from the input features.
+- Applied median imputation and standardization to numerical features.
+- Applied most-frequent-value imputation and one-hot encoding to categorical features.
+- Split the data into training and testing sets using an 80:20 ratio.
 
-- Battery Capacity (kWh)  
-- Range (km)  
-- Efficiency  
-- Acceleration  
-- Top Speed  
-- Weight  
+## 🤖 Model Training and Evaluation
 
-### ✔ Week 1 Tasks Completed
-- Understood dataset & problem  
-- Identified features and target variable  
-- Installed required libraries  
-- Setup development environment (Colab + Python)  
-- Researched EV range factors
+A Random Forest Regressor was trained to predict EV range. The evaluation was performed on a held-out test set.
 
----
+| Evaluation metric | Result |
+|---|---:|
+| Algorithm | Random Forest Regressor |
+| Training records | 82 |
+| Testing records | 21 |
+| R² score | 0.4019 |
+| Mean Absolute Error (MAE) | 55.915 km |
+| Root Mean Squared Error (RMSE) | 89.132 km |
 
-# 🧪 Week 2 – Data Preprocessing, Model Training & Evaluation
+### Understanding the results
 
-## 🛠 Preprocessing Steps
-- Loaded dataset into Pandas  
-- Cleaned data (handled missing values)  
-- Encoded categorical columns  
-- Normalized numeric features  
-- Split into **80% train** and **20% test**
+- **R² score:** 0.4019 on the test set.
+- **MAE:** The average absolute difference between actual and predicted range was approximately 55.915 km.
+- **RMSE:** The root mean squared prediction error was approximately 89.132 km.
 
----
+These metrics correspond to the newly trained model using an 80:20 train-test split with `random_state=42`. Performance may vary with different data splits, particularly because the dataset is small.
 
-## 🤖 ML Models Used
-Two models were trained:
+## 🖥️ Streamlit Application
 
-| Model | R² Score | MAE | RMSE | Notes |
-|-------|----------|------|--------|-------|
-| **Linear Regression** | 0.29 | 65.8 km | 97.0 km | Baseline model |
-| **Random Forest Regressor** | **0.84** | **15.2 km** | **25.6 km** | Best performing |
+The project includes an interactive web application that integrates the trained machine learning pipeline with an EV assistant.
 
-✔ **Winner Model: Random Forest Regressor**  
-✔ Saved as `ev_range_model.joblib`  
-✔ Feature order saved as `feature_list.pkl`
+Application features:
 
----
+- Vehicle specification input form.
+- Machine learning-based EV range prediction.
+- Estimated days between charges based on daily driving distance.
+- AI assistant for EV-related questions.
+- Vehicle recommendations and maintenance guidance.
+- Charging strategy suggestions.
 
-## 📈 Visualizations Included
-- Range Distribution  
-- Feature Importance (Random Forest)  
-- Heatmap correlation  
-- Actual vs Predicted scatter plot  
+The application uses a saved model artifact to generate predictions from the supplied vehicle specifications.
 
----
+## 🧰 Technologies and Libraries
 
-## 📄 Week-2 Deliverables
-- `EV_Range_Prediction.ipynb`  
-- `ElectricCarData_Clean.csv`  
-- `ev_range_model.joblib`  
-- `feature_list.pkl`  
-- `ev_range_predictions.csv`  
-- Model evaluation metrics  
+- **Python:** Core programming language.
+- **Pandas and NumPy:** Data processing and numerical operations.
+- **Scikit-learn:** Preprocessing, model training, and evaluation.
+- **Random Forest Regressor:** Range prediction algorithm.
+- **Joblib:** Saving and loading the trained model.
+- **Streamlit:** Interactive web interface.
 
----
+## 📁 Project Structure
 
-# 🧩 Week 3 – Streamlit Frontend + AI Chatbot
+```text
+shell-internship/
+├── app.py
+├── AIapi.py
+├── model_utils.py
+├── model.ipynb
+├── ElectricCarData_Clean.csv
+├── ev_range_model.joblib
+├── ev_range_model_v2.joblib
+├── feature_list.pkl
+├── ev_range_predictions.csv
+├── ev_range_report .txt
+├── requirements.txt
+└── README.md
+```
 
-## 🎯 Goal
-Convert the ML model into a **user-friendly application** with:
+**Note:** Keep `ev_range_model_v2.joblib` in the project only after confirming that it is the model used by the current application. Update or remove obsolete model artifacts and reports to avoid confusion.
 
-- 🔹 Streamlit UI  
-- 🔹 EV Chatbot (NLU-based)  
-- 🔹 Range Predictor form  
-- 🔹 Public deployment using ngrok/Streamlit Cloud  
+## 🚀 How to Run Locally
 
----
-
-## 💬 Chatbot Features
-The chatbot understands:
-
-- Free text like:  
-  *"battery 75 speed 80 weight 1600"*  
-  *"I drive in eco mode, what is the range?"*
-
-- Extracts numbers using regex  
-- Maps driving styles (`eco`, `normal`, `sport`)  
-- Detects:
-  - greeting  
-  - predict intent  
-  - FAQ questions  
-
-✔ Predicts EV range through the conversation  
-✔ Uses same model backend (`ev_range_model.joblib`)
-
----
-
-## 🖥 Streamlit Frontend Features
-- Two main tabs:
-  - 💬 **Chatbot Interface**  
-  - 📈 **Predict Form**  
-
-- Shows:
-  - Predicted range  
-  - Missing features  
-  - Friendly UI messages  
-
-✔ Works locally  
-✔ Works in Google Colab using ngrok  
-✔ Fully integrated with ML model  
-
----
-
-# 📦 Technologies Used
-
-### **Programming**
-Python
-
-### **Libraries**
-- Streamlit  
-- pandas  
-- numpy  
-- scikit-learn  
-- joblib  
-- pyngrok  
-- regex / NLU patterns  
-
-### **Environment**
-- Google Colab  
-- Jupyter Notebook  
-- Streamlit browser app  
-
----
-
-# 🚀 How to Run Locally
+### 1. Clone the repository
 
 ```bash
-pip install streamlit pandas numpy scikit-learn joblib
-streamlit run app.py
+git clone https://github.com/kartik13112004/shell-internship.git
+cd shell-internship
+```
+
+### 2. Install dependencies
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+### 3. Start the application
+
+```bash
+python -m streamlit run app.py
+```
+
+Open the local URL displayed in the terminal, usually `http://localhost:8501`.
+
+Ensure that the model file expected by `model_utils.py` is present in the project directory.
+
+## 🔮 Future Improvements
+
+- Evaluate model performance using cross-validation.
+- Compare Random Forest with gradient-boosting regression algorithms.
+- Collect a larger and more diverse EV dataset.
+- Investigate additional factors such as temperature, terrain, driving style, and battery degradation.
+- Improve prediction reliability through feature engineering and hyperparameter tuning.
+
+## 👨‍💻 Project Outcome
+
+Developed an end-to-end EV range prediction workflow combining data preprocessing, regression modelling, model evaluation, and an interactive application.
+
+The project demonstrates practical experience with Python, Scikit-learn, regression metrics, model persistence, and Streamlit application development.
+
+## 🔗 Repository
+
+[Shell Internship – EV Range Prediction](https://github.com/kartik13112004/shell-internship)
