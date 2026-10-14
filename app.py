@@ -1,117 +1,183 @@
+
 import streamlit as st
-import os
 import pandas as pd
 from AIapi import EVAIAssistant
 from model_utils import load_model, predict_range
 
-# Streamlit page settings
 st.set_page_config(page_title="EV Range Advisor", layout="wide")
 
-# Simple minimal CSS
-st.markdown("""
-<style>
-body { background: linear-gradient(180deg,#f2f7ff,#ffffff); }
-.header { font-size:28px; font-weight:700; color:#0b3d91; margin-bottom:8px; }
-.result-box { background:#e8ffe8; padding:10px; border-radius:8px; border-left:4px solid #34a853; }
-.small { font-size:13px; color:#555; }
-</style>
-""", unsafe_allow_html=True)
+st.title("EV Range Advisor")
+st.write("Predict electric vehicle range using machine learning.")
 
-# Load assistant + model
+# Load the saved model and AI assistant
+@st.cache_resource
+def get_model():
+    return load_model()
+
+try:
+    model = get_model()
+    model_error = None
+except Exception as e:
+    model = None
+    model_error = str(e)
+
 assistant = EVAIAssistant()
-model = load_model()
 
-# Sidebar
-with st.sidebar:
-    st.markdown("<div class='header'>EV Advisor</div>", unsafe_allow_html=True)
-    if model is None:
-        st.error("Model not found. Add ev_range_model.joblib.")
-    else:
-        st.success("Model loaded ✓")
-    st.markdown("---")
+if model_error:
+    st.error(f"Could not load the ML model: {model_error}")
 
-st.markdown("<div class='header'>EV Range Advisor — Week 3</div>", unsafe_allow_html=True)
-
-# For chat history
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
-
-if "last_prediction" not in st.session_state:
-    st.session_state["last_prediction"] = None
-
-# Layout
-col1, col2 = st.columns([1,1.4])
+col1, col2 = st.columns([1, 1.3])
 
 with col1:
+    st.subheader("Vehicle Specifications")
 
-    st.subheader("Vehicle Inputs")
+    with st.form("vehicle_form"):
+        accel = st.number_input(
+            "Acceleration (0–100 km/h, seconds)",
+            min_value=1.0, max_value=30.0, value=7.0
+        )
 
-    battery = st.number_input("Battery capacity (kWh)", value=50.0, step=1.0)
-    eff = st.number_input("Efficiency (km/kWh)", value=5.0, step=0.1)
-    msrp = st.number_input("MSRP ($)", value=30000, step=100)
-    daily_km = st.number_input("Daily driving (km)", value=30.0)
+        top_speed = st.number_input(
+            "Top speed (km/h)",
+            min_value=50, max_value=400, value=180
+        )
 
-    make = st.text_input("Make", value="Generic")
-    model_name = st.text_input("Model Name", value="EV")
+        efficiency = st.number_input(
+            "Efficiency (Wh/km)",
+            min_value=50, max_value=1000, value=180
+        )
 
-    if st.button("Predict Range"):
+        fast_charge = st.number_input(
+            "Fast charging speed (km/h)",
+            min_value=0, max_value=2000, value=500
+        )
 
-        try:
-            pred_km = predict_range(battery, eff)
-            st.session_state["last_prediction"] = pred_km
+        rapid_charge = st.selectbox(
+            "Rapid charging supported",
+            ["Yes", "No"]
+        )
 
-            st.markdown("<div class='result-box'>", unsafe_allow_html=True)
-            st.write(f"**Predicted Range:** {pred_km:.2f} km")
-            st.write(f"**Days Between Charges:** {pred_km/daily_km:.1f} days")
-            st.write(f"**Cost per km (approx):** ${msrp/(pred_km*10):.2f}")
-            st.markdown("</div>", unsafe_allow_html=True)
+        powertrain = st.selectbox(
+            "Powertrain", ["AWD", "RWD", "FWD"]
+        )
 
-            with st.expander("AI Insights"):
-                rec = assistant.recommend_vehicle(
-                    {"make": make, "model": model_name, "battery_kwh": battery, "eff": eff},
-                    pred_km
-                )
-                st.write("### Recommendation")
-                st.write(rec)
+        plug_type = st.selectbox(
+            "Plug type",
+            ["Type 2 CCS", "Type 2", "Type 2 CHAdeMO",
+             "Type 1 CHAdeMO", "Type 1 CCS"]
+        )
 
-                tips = assistant.maintenance_tips({"battery": battery})
-                st.write("### Maintenance Tips")
-                st.write(tips)
+        body_style = st.selectbox(
+            "Body style",
+            ["SUV", "Sedan", "Hatchback", "Liftback",
+             "Pickup", "Cabrio", "SPV", "Station"]
+        )
 
-                charge = assistant.charging_strategy(daily_km, pred_km)
-                st.write("### Charging Strategy")
-                st.write(charge)
+        segment = st.selectbox(
+            "Vehicle segment",
+            ["A", "B", "C", "D", "E", "F", "N", "S"]
+        )
 
-        except Exception as e:
-            st.error(f"Prediction error: {e}")
+        seats = st.number_input(
+            "Number of seats",
+            min_value=1, max_value=9, value=5
+        )
+
+        price = st.number_input(
+            "Vehicle price (EUR)",
+            min_value=1000, max_value=500000, value=35000
+        )
+
+        daily_km = st.number_input(
+            "Daily driving distance (km)",
+            min_value=1.0, max_value=1000.0, value=30.0
+        )
+
+        make = st.text_input("Vehicle brand", value="Generic")
+        model_name = st.text_input("Vehicle model", value="EV")
+
+        submitted = st.form_submit_button("Predict Range")
+
+    if submitted:
+        if model is None:
+            st.error("The ML model is unavailable. Check the model file.")
+        else:
+            features = {
+                "AccelSec": accel,
+                "TopSpeed_KmH": top_speed,
+                "Efficiency_WhKm": efficiency,
+                "FastCharge_KmH": fast_charge,
+                "RapidCharge": rapid_charge,
+                "PowerTrain": powertrain,
+                "PlugType": plug_type,
+                "BodyStyle": body_style,
+                "Segment": segment,
+                "Seats": seats,
+                "PriceEuro": price
+            }
+
+            try:
+                pred_km = predict_range(features, model=model)
+
+                if pred_km <= 0:
+                    st.warning("The model returned a non-positive range.")
+                else:
+                    st.success(f"Predicted EV range: {pred_km:.1f} km")
+                    st.write(
+                        f"Estimated days between charges: "
+                        f"{pred_km / daily_km:.1f}"
+                    )
+
+                    with st.expander("AI Insights"):
+                        vehicle = {
+                            "make": make,
+                            "model": model_name,
+                            "efficiency": efficiency,
+                            "daily_km": daily_km
+                        }
+
+                        st.write("### Recommendation")
+                        st.write(
+                            assistant.recommend_vehicle(vehicle, pred_km)
+                        )
+
+                        st.write("### Maintenance Tips")
+                        st.write(
+                            assistant.maintenance_tips(
+                                {"battery": "Refer to vehicle specifications"}
+                            )
+                        )
+
+                        st.write("### Charging Strategy")
+                        st.write(
+                            assistant.charging_strategy(daily_km, pred_km)
+                        )
+
+            except Exception as e:
+                st.error(f"Prediction failed: {e}")
 
 with col2:
     st.subheader("AI Chat Assistant")
 
-    user_msg = st.text_input("Ask anything about EVs")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    user_msg = st.text_input("Ask anything about electric vehicles")
 
     if st.button("Send"):
-        if user_msg.strip() == "":
-            st.warning("Enter a message.")
-        else:
-            context = ""
-            if st.session_state["last_prediction"]:
-                context = f"Predicted range: {st.session_state['last_prediction']} km. "
-
-            prompt = context + user_msg
-
+        if user_msg.strip():
             try:
-                reply = assistant.generate_text(prompt)
+                reply = assistant.generate_text(user_msg)
             except Exception:
-                reply = assistant._fallback(prompt)
+                reply = assistant._fallback(user_msg)
 
-            st.session_state["chat_history"].insert(0, {"user": user_msg, "assistant": reply})
-            st.session_state["chat_input"] = ""
+            st.session_state.chat_history.append(
+                {"user": user_msg, "assistant": reply}
+            )
+        else:
+            st.warning("Please enter a message.")
 
-    # Display chat
-    for chat in st.session_state["chat_history"]:
+    for chat in reversed(st.session_state.chat_history):
         st.write(f"**You:** {chat['user']}")
         st.write(f"**Assistant:** {chat['assistant']}")
-        st.markdown("---")
-
-st.markdown("<hr><div class='small'>EV Advisor — Built for Week 3 Project</div>", unsafe_allow_html=True)
+        st.divider()
