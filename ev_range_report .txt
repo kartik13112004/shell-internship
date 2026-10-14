@@ -1,18 +1,32 @@
+Project: Predicting Electric Vehicle (EV) Range Using Machine Learning
 
-Project: Predicting Electric Vehicle (EV) Range using Machine Learning
-
-Dataset: /content/ElectricCarData_Clean.csv
+Dataset: ElectricCarData_Clean.csv  
 Target: Range_Km
 
-Model summary:
-- Best model chosen: Random Forest (after RandomizedSearch/GridSearch)
-- Test R2: 0.2912
-- Test MAE: 65.853
-- Test RMSE: 97.033
+Model Summary:
+- Model: Random Forest Regressor
+- Training records: 82
+- Testing records: 21
+- Train-test split: 80:20
+- Random state: 42
 
-Top features (from RandomForest):
-num__PriceEuro, num__TopSpeed_KmH, num__AccelSec, num__Efficiency_WhKm, cat__Segment_S, cat__Model_Roadster , cat__PowerTrain_FWD, cat__BodyStyle_Cabrio, cat__FastCharge_KmH_920, cat__Segment_F
+Evaluation Metrics:
+- Test R²: 0.4019
+- Test MAE: 55.915 km
+- Test RMSE: 89.132 km
+
+Preprocessing:
+- Missing values handled using imputation.
+- Numerical features standardized.
+- Categorical features encoded using one-hot encoding.
+- Preprocessing fitted on the training data through a scikit-learn pipeline.
 
 Conclusion:
-Higher battery capacity, lower energy consumption (Wh/km), lower vehicle weight, and better powertrain efficiency increase EV range. For improvement: add environment variables (temperature, terrain), try boosting (XGBoost), collect more data.
+The model demonstrates a measurable ability to predict electric vehicle range, but its performance can be improved. The dataset contains 103 records, so the evaluation results may vary depending on the train-test split.
 
+Future Improvements:
+- Evaluate performance using cross-validation.
+- Collect more diverse electric vehicle data.
+- Investigate additional relevant vehicle specifications.
+- Compare Random Forest with gradient-boosting models such as XGBoost.
+- Evaluate the effect of temperature, terrain, and driving conditions when suitable data is available.
